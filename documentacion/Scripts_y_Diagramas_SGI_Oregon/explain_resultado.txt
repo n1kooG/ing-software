@@ -1,0 +1,129 @@
+--- Q1 HU06: búsqueda exacta por SKU
+                                               QUERY PLAN                                               
+--------------------------------------------------------------------------------------------------------
+ Nested Loop (actual time=0.058..0.060 rows=1 loops=1)
+   ->  Index Scan using ix_producto_sku_prefijo on producto p (actual time=0.035..0.035 rows=1 loops=1)
+         Index Cond: ((sku)::text = 'SKU-02500'::text)
+   ->  Index Scan using inventario_sku_key on inventario i (actual time=0.019..0.020 rows=1 loops=1)
+         Index Cond: ((sku)::text = 'SKU-02500'::text)
+ Planning Time: 0.750 ms
+ Execution Time: 0.142 ms
+(7 rows)
+
+--- Q2 HU06: predictiva por prefijo de SKU
+                                                  QUERY PLAN                                                  
+--------------------------------------------------------------------------------------------------------------
+ Limit (actual time=1.526..1.541 rows=10 loops=1)
+   ->  Merge Join (actual time=1.525..1.537 rows=10 loops=1)
+         Merge Cond: ((p.sku)::text = (i.sku)::text)
+         ->  Index Scan using producto_pkey on producto p (actual time=0.618..0.622 rows=10 loops=1)
+               Filter: ((sku)::text ~~ 'SKU-025%'::text)
+               Rows Removed by Filter: 2499
+         ->  Index Scan using inventario_sku_key on inventario i (actual time=0.056..0.547 rows=2509 loops=1)
+ Planning Time: 0.559 ms
+ Execution Time: 1.576 ms
+(9 rows)
+
+--- Q3 HU06: predictiva por fragmento de modelo/nombre (con índices trigram)
+                                                               QUERY PLAN                                                                
+-----------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.081..0.195 rows=13 loops=1)
+   ->  Nested Loop (actual time=0.080..0.192 rows=13 loops=1)
+         ->  Bitmap Heap Scan on producto p (actual time=0.065..0.122 rows=13 loops=1)
+               Recheck Cond: (((sku)::text ~~ 'C4C%'::text) OR ((modelo)::text ~~* '%c4c%'::text) OR ((nombre)::text ~~* '%c4c%'::text))
+               Filter: (((sku)::text ~~ 'C4C%'::text) OR ((modelo)::text ~~* '%c4c%'::text) OR ((nombre)::text ~~* '%c4c%'::text))
+               Heap Blocks: exact=12
+               ->  BitmapOr (actual time=0.050..0.050 rows=0 loops=1)
+                     ->  Bitmap Index Scan on ix_producto_sku_prefijo (actual time=0.005..0.005 rows=0 loops=1)
+                           Index Cond: (((sku)::text ~>=~ 'C4C'::text) AND ((sku)::text ~<~ 'C4D'::text))
+                     ->  Bitmap Index Scan on ix_producto_modelo_trgm (actual time=0.028..0.028 rows=5 loops=1)
+                           Index Cond: ((modelo)::text ~~* '%c4c%'::text)
+                     ->  Bitmap Index Scan on ix_producto_nombre_trgm (actual time=0.016..0.016 rows=8 loops=1)
+                           Index Cond: ((nombre)::text ~~* '%c4c%'::text)
+         ->  Index Scan using inventario_sku_key on inventario i (actual time=0.005..0.005 rows=1 loops=13)
+               Index Cond: ((sku)::text = (p.sku)::text)
+ Planning Time: 0.958 ms
+ Execution Time: 0.280 ms
+(17 rows)
+
+--- Q3b mismo query SIN índices (referencia)
+                                                               QUERY PLAN                                                                
+-----------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=6.848..7.919 rows=13 loops=1)
+   ->  Hash Join (actual time=6.847..7.915 rows=13 loops=1)
+         Hash Cond: ((i.sku)::text = (p.sku)::text)
+         ->  Seq Scan on inventario i (actual time=0.003..0.506 rows=5000 loops=1)
+         ->  Hash (actual time=6.834..6.835 rows=13 loops=1)
+               Buckets: 1024  Batches: 1  Memory Usage: 9kB
+               ->  Seq Scan on producto p (actual time=0.006..6.815 rows=13 loops=1)
+                     Filter: (((sku)::text ~~ 'C4C%'::text) OR ((modelo)::text ~~* '%c4c%'::text) OR ((nombre)::text ~~* '%c4c%'::text))
+                     Rows Removed by Filter: 4987
+ Planning Time: 0.365 ms
+ Execution Time: 7.984 ms
+(11 rows)
+
+--- Q4 HU05: pedidos pendientes de preparar (índice parcial)
+                                                QUERY PLAN                                                
+----------------------------------------------------------------------------------------------------------
+ Sort (actual time=3.094..3.203 rows=1000 loops=1)
+   Sort Key: fecha_orden
+   Sort Method: quicksort  Memory: 99kB
+   ->  Bitmap Heap Scan on orden_venta (actual time=0.201..2.578 rows=1000 loops=1)
+         Recheck Cond: ((estado_orden)::text = ANY ('{PENDIENTE_PREPARACION,ARMADO,ETIQUETADO}'::text[]))
+         Heap Blocks: exact=507
+         ->  Bitmap Index Scan on ix_orden_pendientes (actual time=0.126..0.126 rows=1000 loops=1)
+ Planning Time: 0.405 ms
+ Execution Time: 3.286 ms
+(9 rows)
+
+--- Q5 HU10: unidades vendidas por SKU en el mes (rotación)
+                                                            QUERY PLAN                                                             
+-----------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=43.227..43.416 rows=10 loops=1)
+   ->  Sort (actual time=43.225..43.413 rows=10 loops=1)
+         Sort Key: (sum(d.cantidad_vendida)) DESC
+         Sort Method: top-N heapsort  Memory: 26kB
+         ->  Finalize HashAggregate (actual time=42.140..42.795 rows=4892 loops=1)
+               Group Key: d.sku
+               Batches: 1  Memory Usage: 721kB
+               ->  Gather (actual time=38.905..40.448 rows=8843 loops=1)
+                     Workers Planned: 1
+                     Workers Launched: 1
+                     ->  Partial HashAggregate (actual time=36.549..37.081 rows=4422 loops=2)
+                           Group Key: d.sku
+                           Batches: 1  Memory Usage: 721kB
+                           Worker 0:  Batches: 1  Memory Usage: 721kB
+                           ->  Parallel Hash Join (actual time=3.106..33.187 rows=12272 loops=2)
+                                 Hash Cond: (d.id_orden = o.id_orden)
+                                 ->  Parallel Seq Scan on detalle_venta d (actual time=0.005..13.797 rows=149970 loops=2)
+                                 ->  Parallel Hash (actual time=2.945..2.947 rows=4091 loops=2)
+                                       Buckets: 16384  Batches: 1  Memory Usage: 480kB
+                                       ->  Parallel Bitmap Heap Scan on orden_venta o (actual time=0.539..2.248 rows=4091 loops=2)
+                                             Recheck Cond: (fecha_orden >= (now() - '30 days'::interval))
+                                             Heap Blocks: exact=1069
+                                             ->  Bitmap Index Scan on ix_orden_fecha (actual time=0.781..0.782 rows=8182 loops=1)
+                                                   Index Cond: (fecha_orden >= (now() - '30 days'::interval))
+ Planning Time: 0.587 ms
+ Execution Time: 43.791 ms
+(26 rows)
+
+--- Q6 AuditLog: últimos 50 eventos
+                                          QUERY PLAN                                           
+-----------------------------------------------------------------------------------------------
+ Limit (actual time=0.027..0.038 rows=50 loops=1)
+   ->  Index Scan using ix_audit_fecha on audit_log (actual time=0.027..0.034 rows=50 loops=1)
+ Planning Time: 0.185 ms
+ Execution Time: 0.048 ms
+(4 rows)
+
+--- Q7 AuditLog: exportación por rango de fechas
+                                              QUERY PLAN                                              
+------------------------------------------------------------------------------------------------------
+ Aggregate (actual time=0.295..0.296 rows=1 loops=1)
+   ->  Index Only Scan using ix_audit_fecha on audit_log (actual time=0.013..0.225 rows=1439 loops=1)
+         Index Cond: (fecha_hora >= (now() - '2 days'::interval))
+         Heap Fetches: 1439
+ Planning Time: 0.070 ms
+ Execution Time: 0.306 ms
+(6 rows)
+

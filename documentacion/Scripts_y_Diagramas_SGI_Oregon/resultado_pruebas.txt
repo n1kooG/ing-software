@@ -1,0 +1,50 @@
+
+==================== RESULTADO DE PRUEBAS DE INTEGRIDAD ====================
+   id    |                                prueba                                |          esperado          |     obtenido     | estado 
+---------+----------------------------------------------------------------------+----------------------------+------------------+--------
+ ACID-01 | T16: venta sin stock revierte la orden completa (ROLLBACK)           | 23514 / órdenes sin cambio | 23514 / 0 nuevas | OK
+ AUD-01  | AuditLog: UPDATE no permitido                                        | 42501                      | 42501            | OK
+ AUD-02  | AuditLog: DELETE no permitido                                        | 42501                      | 42501            | OK
+ AUD-03  | AuditLog: TRUNCATE no permitido                                      | 42501                      | 42501            | OK
+ AUD-04  | PI-04: geolocalización con formato inválido es rechazada             | 23514                      | 23514            | OK
+ AUD-05  | PI-04: geolocalización válida (lat,lon) es aceptada                  | insert aceptado            | insert aceptado  | OK
+ FIN-01  | PU-02: margen TH-4500 canal WEB = 34.80 %                            | 34.80                      | 34.80            | OK
+ FIN-02  | PU-03: margen TH-4500 canal MAYORISTA = 18.97 %                      | 18.97                      | 18.97            | OK
+ FIN-03  | PU-03: precio de venta menor o igual al costo es rechazado           | 23514                      | 23514            | OK
+ FIN-04  | PU-01: neto de la factura 54691 = suma del detalle                   | 165828.00                  | 165828.00        | OK
+ FIN-05  | PU-01: IVA 19 % redondeado = 31.507                                  | 31507                      | 31507            | OK
+ FIN-06  | PU-01: total facturado = 197.335                                     | 197335.00                  | 197335.00        | OK
+ FIN-07  | Total de factura distinto de neto + IVA es rechazado                 | 23514                      | 23514            | OK
+ FIN-08  | HU03: la misma factura del mismo proveedor no se registra dos veces  | 23505                      | 23505            | OK
+ FIN-09  | T11: cambiar el costo (14.990 -> 16.000) recalcula el margen WEB     | 30.40                      | 30.40            | OK
+ IN-01   | HU01: SKU duplicado es rechazado                                     | 23505                      | 23505            | OK
+ IN-02   | HU01: SKU en minúsculas no normalizado es rechazado                  | 23514                      | 23514            | OK
+ IN-03   | CU-03: el SKU es inmutable                                           | 23000                      | 23000            | OK
+ IN-04   | RUT inválido (módulo 11) es rechazado                                | 23514                      | 23514            | OK
+ IN-05   | Correo duplicado (sin distinguir mayúsculas) es rechazado            | 23505                      | 23505            | OK
+ IN-06   | Rol.permisos debe ser un arreglo JSON                                | 23514                      | 23514            | OK
+ INV-01  | PU-05: stock físico negativo es rechazado (3 un. - 5 un.)            | 23514                      | 23514            | OK
+ INV-02  | PU-05: rebaja condicionada no modifica filas si no alcanza el stock  | 0                          | 0                | OK
+ INV-03  | PU-04: stock TH-4500 tras vender 4 de 24 unidades                    | 20                         | 20               | OK
+ INV-04  | PI-01: stock GM-COCONUT tras recibir 2 unidades de la factura 54691  | 2                          | 2                | OK
+ INV-05  | PI-01: unidades físicas recibidas en el sistema = 9                  | 9                          | 9                | OK
+ INV-06  | HU09: UT-FORNO figura en stock crítico (3 un. <= mínimo 5)           | 1                          | 1                | OK
+ IR-01   | DetalleVenta con SKU inexistente es rechazado                        | 23503                      | 23503            | OK
+ IR-02   | No se puede borrar un producto con movimientos                       | 23503                      | 23503            | OK
+ IR-03   | No se puede borrar un usuario con historial                          | 23503                      | 23503            | OK
+ SEG-01  | PU-06: la clave se guarda con bcrypt cost 12 (prefijo $2a$12$)       | $2a$12$                    | $2a$12$          | OK
+ SEG-02  | PU-07: clave correcta valida contra el hash                          | true                       | true             | OK
+ SEG-03  | PU-08: clave incorrecta es rechazada                                 | false                      | false            | OK
+ SEG-04  | Plan de seguridad: intentos fallidos negativos son rechazados        | 23514                      | 23514            | OK
+ VD-01   | HU04: importar dos veces la misma orden del mismo canal es rechazado | 23505                      | 23505            | OK
+ VD-02   | Estado de orden fuera del flujo (EN_RUTA -> ARMADO) es rechazado     | 23514                      | 23514            | OK
+ VD-03   | HU07: despacho RECHAZADO sin causal es rechazado                     | 23514                      | 23514            | OK
+ VD-04   | Solo un usuario con rol CHOFER puede asignarse a un despacho         | 23514                      | 23514            | OK
+ VD-05   | HU07: cierre de entrega con causal es aceptado                       | 1                          | 1                | OK
+(39 rows)
+
+ total | aprobadas | fallidas 
+-------+-----------+----------
+    39 |        39 |        0
+(1 row)
+
